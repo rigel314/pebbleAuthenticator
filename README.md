@@ -1,50 +1,33 @@
-twostep
-=======
+Authenticator
+=============
 
-Google Two-Step Authenticator for Pebble
+Forked off 'twostep' by pokey9000, this is Authenticator for Pebble,
+generating multiple Time-based One-Time Passwords, much like Google Authenticator.
 
-This is very much a WIP.  Why?
+The same restrictions apply, you will have to recompile the application to include your
+TOTP secrets, name them, and include your timezone offset from GMT.
 
--There's no way to enter your secret phrase without recompiling the application
+To configure the application:
+This is easily done using oathtool on linux. For example:
 
--...and the Pebble only reports local time, not GMT, so you have to enter an offset in the source
+1. Let's say you have secret key AXIMZYJXITSIOIJVNXOE76PEJQ====== 
+(you might need to pad with = characters to 16 or 32 characters, if applicable)
 
--...which means you have to download the source, make changes to src/twostep.c, and recompile for a .pbw specific to your account
+2. Run: oathtool --verbose --totp --base32 "AXIMZYJXITSIOIJVNXOE76PEJQ======" and copy the hex secret displayed.
 
--...and if you cross time zones or there's a DST change you'll need to rebuild the app again
+3. expand the hex string 05d0cce13744e48721356ddc4ff9e44c like so: { 0x05, 0xd0, 0xcc, 0xe1, 0x37... 0x4c }
 
--I don't have a base32-to-base64 conversion function yet, so you'll need to do that yourself
+4. Enter this new expanded string into authenticator.c under the otpkeys variable.
 
--I may or may not be a shady character intent on destroying your rare and valuable smart watch
+5. Label the secret under otplabels.
 
--It works for me but might not for you
+6. Enter the size of the secret (usually 10 for Google, 16 for others) under otpsizes.
 
-To use:
--check out from the github below & follow directions on the SDK site to build an existing application
+7. Build and install the application.
 
--get your base32 encoded secret:
+8. Done, you can find 'Authenticator' in your app menu for your Pebble.
 
-  - go to your two step setup page
-
-  - choose to set up an iPhone application
-
-  - click the link for "can't scan QR code"
-
-  - cut the 16-character key
-
-  - DO NOT CLOSE THE GOOGLE TWO FACTOR WINDOW
-
-  - Convert the key from base32 to base64 somehow
-
-  - take the value and put it bytewise into sha1_key, ex. expand AABBCC into 0xaa, 0xbb, 0xcc, ... 
-
--edit src/twostep.c and modify the defines under "CONFIGURE THIS"
-
--build, install
-
--the app ends up in the main menu.  It will update the key every 30 seconds
-
--test the key in the window you left open
+The above is assuming you have the Pebble SDK installed and configured to compile watch apps.
+If not, review: http://developer.getpebble.com/1/01_GetStarted/01_Step_2
 
 
-Thanks to WhyIsThisOpen for posting his Unix Time source necessary for deriving seconds since epoch and time zone correction (without working mktime()).  Uses the public domain sha1.c from liboauth.
