@@ -3,7 +3,7 @@
 #include "pebble_fonts.h"
 
 extern int tZone;
-
+extern bool changed;
 
 Window setZoneW;
 TextLayer setZoneW_zone;
@@ -37,6 +37,7 @@ void zone_up(ClickRecognizerRef recognizer, Window *window) {
 		tZone++;
 	strcpy(gmt+3, itoa2(tZone,10));
 	text_layer_set_text(&setZoneW_zone, gmt);
+	changed = true;
 }
 
 void zone_down(ClickRecognizerRef recognizer, Window *window) {
@@ -47,6 +48,7 @@ void zone_down(ClickRecognizerRef recognizer, Window *window) {
 		tZone--;
 	strcpy(gmt+3, itoa2(tZone,10));
 	text_layer_set_text(&setZoneW_zone, gmt);
+	changed = true;
 }
 
 void zone_click_config_provider(ClickConfig **config, Window *window) {
@@ -93,4 +95,6 @@ void showEditTimeZone()
 
 	window_set_click_config_provider(&setZoneW, (ClickConfigProvider) zone_click_config_provider);
 	window_stack_push(&setZoneW, true);
+
+	changed = true;
 }

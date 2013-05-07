@@ -24,6 +24,7 @@ TextLayer token;
 TextLayer ticker;
 int curToken = 0;
 int tZone;
+bool changed;
 
 /* from sha1.c from liboauth */
 
@@ -241,7 +242,7 @@ uint32_t get_epoch_seconds() {
 	
 // shamelessly stolen from WhyIsThisOpen's Unix Time source: http://forums.getpebble.com/discussion/4324/watch-face-unix-time
 	/* Convert time to seconds since epoch. */
-	curSeconds=current_time.tm_sec;
+	//curSeconds=current_time.tm_sec;
 	unix_time = ((0-tZone)*3600) + /* time zone offset */          /* 0-tZone+current_time.tm_isdst if it ever starts working. */
 		+ current_time.tm_sec /* start with seconds */
 		+ current_time.tm_min*60 /* add minutes */
@@ -268,52 +269,57 @@ void handle_second_tick(AppContextRef ctx, PebbleTickEvent *t) {
 	uint32_t unix_time;
 	char sha1_time[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
-	// TOTP uses seconds since epoch in the upper half of an 8 byte payload
-	// TOTP is HOTP with a time based payload
-	// HOTP is HMAC with a truncation function to get a short decimal key
-	unix_time = get_epoch_seconds();
-	sha1_time[4] = (unix_time >> 24) & 0xFF;
-	sha1_time[5] = (unix_time >> 16) & 0xFF;
-	sha1_time[6] = (unix_time >> 8) & 0xFF;
-	sha1_time[7] = unix_time & 0xFF;
+	PblTm curTime;
+	get_time(&curTime);
+	curSeconds = curTime.tm_sec;
 
-	// First get the HMAC hash of the time payload with the shared key
-	sha1_initHmac(&s, otpkeys[curToken], otpsizes[curToken]);
-	sha1_write(&s, sha1_time, 8);
-	sha1_resultHmac(&s);
-	
-	// Then do the HOTP truncation.  HOTP pulls its result from a 31-bit byte
-	// aligned window in the HMAC result, then lops off digits to the left
-	// over 6 digits.
-	ofs=s.state.b[SHA1_SIZE-1] & 0xf;
-	otp = 0;
-	otp = ((s.state.b[ofs] & 0x7f) << 24) |
-		((s.state.b[ofs + 1] & 0xff) << 16) |
-		((s.state.b[ofs + 2] & 0xff) << 8) |
-		(s.state.b[ofs + 3] & 0xff);
-	otp %= DIGITS_TRUNCATE;
-	
-	// Convert result into a string.  Sure wish we had working snprintf...
-	for(i = 0; i < 6; i++) {
-		tokenText[5-i] = 0x30 + (otp % 10);
-		otp /= 10;
+	if(curSeconds == 0 || curSeconds == 30 || changed)
+	{
+		changed = false;
+
+		// TOTP uses seconds since epoch in the upper half of an 8 byte payload
+		// TOTP is HOTP with a time based payload
+		// HOTP is HMAC with a truncation function to get a short decimal key
+		unix_time = get_epoch_seconds();
+		sha1_time[4] = (unix_time >> 24) & 0xFF;
+		sha1_time[5] = (unix_time >> 16) & 0xFF;
+		sha1_time[6] = (unix_time >> 8) & 0xFF;
+		sha1_time[7] = unix_time & 0xFF;
+
+		// First get the HMAC hash of the time payload with the shared key
+		sha1_initHmac(&s, otpkeys[curToken], otpsizes[curToken]);
+		sha1_write(&s, sha1_time, 8);
+		sha1_resultHmac(&s);
+		
+		// Then do the HOTP truncation.  HOTP pulls its result from a 31-bit byte
+		// aligned window in the HMAC result, then lops off digits to the left
+		// over 6 digits.
+		ofs=s.state.b[SHA1_SIZE-1] & 0xf;
+		otp = 0;
+		otp = ((s.state.b[ofs] & 0x7f) << 24) |
+			((s.state.b[ofs + 1] & 0xff) << 16) |
+			((s.state.b[ofs + 2] & 0xff) << 8) |
+			(s.state.b[ofs + 3] & 0xff);
+		otp %= DIGITS_TRUNCATE;
+		
+		// Convert result into a string.  Sure wish we had working snprintf...
+		for(i = 0; i < 6; i++) {
+			tokenText[5-i] = 0x30 + (otp % 10);
+			otp /= 10;
+		}
+		tokenText[6]=0;
+
+		char *labelText = otplabels[curToken];
+
+		text_layer_set_text(&label, labelText);
+		text_layer_set_text(&token, tokenText);
 	}
-	tokenText[6]=0;
 
-	char *labelText = otplabels[curToken];
-	/*static char textything[9];
-	textything[8] = 0;
-	addFullAddressToStr(textything, get_epoch_seconds());*/
-
-	text_layer_set_text(&label, labelText);
-	// text_layer_set_text(&label, textything);
-	text_layer_set_text(&token, tokenText);
 	if ((curSeconds>=0) && (curSeconds<30)) {
 		text_layer_set_text(&ticker, itoa((30-curSeconds),10));
 	} else {
 		text_layer_set_text(&ticker, itoa((60-curSeconds),10));
 	}
-	//text_layer_set_text(&ticker, itoa(curSeconds,10));
 }
 
 void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
@@ -322,6 +328,7 @@ void up_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
 	} else {
 		curToken--;
 	};
+	changed = true;
 	handle_second_tick(NULL,NULL);
 }
 
@@ -333,6 +340,7 @@ void down_single_click_handler(ClickRecognizerRef recognizer, Window *window) {
 	} else {
 		curToken++;
 	};
+	changed = true;
 	handle_second_tick(NULL,NULL);
 }
 
@@ -359,6 +367,7 @@ void handle_init(AppContextRef ctx) {
 	(void)ctx;
 
 	tZone = DEFAULT_TIME_ZONE;
+	changed = true;
 
 	window_init(&window, "auth");
 	window_stack_push(&window, true /* Animated */);
