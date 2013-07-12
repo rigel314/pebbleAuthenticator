@@ -7,6 +7,7 @@ void showEditTimeZone();
 
 // current time zone offset
 #define DEFAULT_TIME_ZONE -4
+int tZone;
 
 char otplabels[NUM_SECRETS][10] = {
 	"Dropbox","Google"
